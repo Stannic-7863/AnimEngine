@@ -1,37 +1,35 @@
 package AnimationEngine
 
+import "core:math/linalg"
 import rl "vendor:raylib"
 
-Draw :: proc(objects: ^[dynamic]AnimationObject) {
-	for object_union in objects {
-		switch object in object_union {
-		case ^Circle:
-			DrawCircle(object^)
-		case ^Rect:
-			DrawRect(object^)
-		}
+
+Draw :: proc(object: Object) {
+	switch object.type {
+	case .Circle:
+		DrawCircle(object.position, object.size[0], object.color)
+	case .Rectangle, .Sqaure:
+		DrawRect(object.position, object.size, object.color)
 	}
 }
 
-DrawCircle :: proc(circle: Circle) {
-	rl.DrawCircleV(
-		circle.position.current_position,
-		circle.radius.current_radius,
-		cast(rl.Color)circle.color.current_color,
-	)
+DrawCircle :: proc(position: [2]f32, radius: f32, color: [4]f32) {
+	color_u8 := rl.ColorFromNormalized(color / 255)
+	rl.DrawCircleV(position, radius, color_u8)
 }
 
-DrawRect :: proc(rect: Rect) {
+DrawRect :: proc(position, size: [2]f32, color: [4]f32) {
 
 	rect_DrawRect: rl.Rectangle = rl.Rectangle {
-		x      = rect.position.current_position[0],
-		y      = rect.position.current_position[1],
-		width  = rect.size.current_size[0],
-		height = rect.size.current_size[1],
+		x      = position[0],
+		y      = position[1],
+		width  = size[0],
+		height = size[1],
 	}
 
-	origin: [2]f32 = [2]f32{rect.size.current_size[0] / 2, rect.size.current_size[1] / 2}
+	origin: [2]f32 = [2]f32{size[0] / 2, size[1] / 2}
 
-	rl.DrawRectanglePro(rect_DrawRect, origin, 0, cast(rl.Color)rect.color.current_color)
+	color_u8 := rl.ColorFromNormalized(color / 255)
 
+	rl.DrawRectanglePro(rect_DrawRect, origin, 0, color_u8)
 }
