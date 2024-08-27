@@ -1,3 +1,4 @@
+// Example/Test Code 
 package main
 
 import render "RenderRaylibToVid"
@@ -5,68 +6,103 @@ import "core:fmt"
 import anim "engine"
 import rl "vendor:raylib"
 
+Queue :: [dynamic][dynamic]anim.Animation
+
 main :: proc() {
 
-	rl.InitWindow(800, 640, "Anim window")
-	defer rl.CloseWindow()
+
+	rl.SetConfigFlags({rl.ConfigFlag.WINDOW_HIGHDPI, rl.ConfigFlag.MSAA_4X_HINT})
+	rl.InitWindow(4096, 2160, "Anim window")
 	scr_width: i32 = cast(i32)rl.GetMonitorWidth(rl.GetCurrentMonitor())
 	scr_height: i32 = cast(i32)rl.GetMonitorHeight(rl.GetCurrentMonitor())
 
-	rl.SetWindowSize(scr_width, scr_height)
+	rl.SetWindowPosition(0, 0)
+	rl.SetTargetFPS(120)
 
-	rect: anim.Rect = anim.GetRect(
-		start_pos = {500, 500},
-		target_pos = {400, 400},
-		start_size = {70, 20},
-		target_size = {100, 30},
-		start_color = {100, 200, 255, 255},
-		target_color = {233, 24, 200, 255},
-		duration = 2,
+	rect_object := anim.GetObject(
+		position = {40, 40},
+		size = {50, 50},
+		color = {1, 255, 255, 255},
+		type = anim.ObjectType.Rectangle,
+	)
+	rect_object_animation := anim.GetAnimation(
+		start = {40, 40, 0, 0},
+		end = {1000, 1000, 0, 0},
+		type = anim.AnimationType.Move,
+		duration = 10,
+		easing_function = rl.EaseBounceInOut,
+	)
+	rect_object_animation_color := anim.GetAnimation(
+		start = {1, 255, 255, 255},
+		end = {255, 0, 255, 255},
+		type = anim.AnimationType.Color,
+		duration = 10,
 		easing_function = rl.EaseBounceInOut,
 	)
 
-	circle: anim.Circle = anim.GetCircle(
-		start_pos = {300, 300},
-		target_pos = {500, 500},
-		start_radius = 20,
-		target_radius = 40,
-		start_color = {50, 50, 50, 255},
-		target_color = {100, 100, 200, 255},
-		duration = 3,
-		easing_function = rl.EaseSineInOut,
-	)
+	animate_queue: Queue = make(Queue)
 
-	frames: [dynamic]rawptr
+	AddAnimationToQueue(&animate_queue, rect_object_animation)
+	AddAnimationToQueue(&animate_queue, rect_object_animation_color)
 
-	rl.SetTargetFPS(60)
+	fmt.println(animate_queue)
+
+	frames := make([dynamic]rl.Image)
+
+	queue_current_progress := 0
 
 	for (!rl.WindowShouldClose()) {
-		delta: f32 = rl.GetFrameTime()
 
-		anim.AnimatePosition(&rect.position, delta)
-		anim.AnimateColor(&rect.color, delta)
-		anim.AnimateOriginateFromCenter(&rect.size, delta)
-
-		anim.AnimatePosition(&circle.position, delta)
-		anim.AnimateOriginateFromCenter(&circle.radius, delta)
-		anim.AnimateColor(&circle.color, delta)
+		delta := rl.GetFrameTime()
 
 		rl.BeginDrawing()
 		rl.ClearBackground(rl.BLACK)
-		anim.DrawRect(rect)
-		anim.DrawCircle(circle)
+
+		animation_arr := animate_queue[queue_current_progress]
+		sub_quene_len := len(animation_arr)
+		for &animation, index in animation_arr {
+			anim.Animate(&rect_object, &animation, delta)
+			if animation.elapsed == animation.duration {
+				sub_quene_len -= 1
+			}
+		}
+		if sub_quene_len <= 0 {
+			queue_current_progress += 1
+			queue_current_progress %= len(animate_queue)
+		}
+
+		anim.Draw(rect_object)
 		rl.EndDrawing()
 
-		image := rl.LoadImageFromScreen()
-		append(&frames, image.data)
+		image: rl.Image = rl.LoadImageFromScreen()
+
+		append(&frames, image)
+
 	}
 
-	pipe: ^render.Pipe = render.CreatePipe()
-	render.StartFFMPEG(pipe, auto_cast scr_width, auto_cast scr_height, 60)
 
-	for data in frames {
-		render.WriteToPipe(pipe, data, auto_cast (scr_width * scr_height * 4))
+	pipe := render.CreatePipe()
+	render.StartFFMPEG(pipe, 4096, 2160, 120)
+
+	buf_size: uint = auto_cast (4096 * 2160 * 4)
+
+	for image in frames {
+		render.WriteToPipe(pipe, image.data, buf_size)
 	}
 	render.ClosePipe(pipe)
-	clear(&frames)
+
+	rl.CloseWindow()
+	delete(frames)
+}
+
+
+AddAnimationToQueue :: proc(queue: ^Queue, animations: ..anim.Animation) {
+
+	animation_arr := make([dynamic]anim.Animation)
+
+	for animation in animations {
+		append(&animation_arr, animation)
+	}
+
+	append(queue, animation_arr)
 }
